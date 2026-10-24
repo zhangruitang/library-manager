@@ -59,7 +59,7 @@ public class ConsoleUI {
             }
             try{
                 switch(choice){
-                    //添加
+                    // 添加普通图书；分类由业务层设为“未分类”，并由业务层校验字段和编号。
                     case "1":
                         output.print("请输入要添加的编号：");
                         String id = input.nextLine();
@@ -70,7 +70,7 @@ public class ConsoleUI {
                         service.addBook(id,title,author);
                         output.println("添加成功");
                         break;
-                    //全部
+                    // 展示当前书单；空书库时给出单独提示。
                     case "2":
                         if (service.listBooks().isEmpty()){
                             output.println("目前没有图书");
@@ -79,35 +79,35 @@ public class ConsoleUI {
                             printBooks(service.listBooks());
                         }
                         break;
-                    //编号查询
+                    // 按编号查询，并复用统一打印方法显示完整图书信息。
                     case "3":
                         output.println("请输入要查询的书的编号：");
                         String searchId  = input.nextLine();
                         Book foundBook = service.findById(searchId);
                         printBooks(List.of(foundBook));
                         break;
-                    //借出
+                    // 借出指定图书；是否已借出由业务层检查。
                     case "4":
                         output.println("请输入要借出的书的编号：");
                         String borrowId = input.nextLine();
                         service.borrowBook(borrowId);
                         output.println("已成功借出");
                         break;
-                    //归还
+                    // 归还指定图书；是否尚未借出由业务层检查。
                     case "5":
                         output.println("请输入要归还的书的编号：");
                         String returnId = input.nextLine();
                         service.returnBook(returnId);
                         output.println("已成功归还");
                         break;
-                    //删除
+                    // 删除指定图书；借出的图书不能删除。
                     case "6":
                         output.println("请输入要删除的书的编号：");
                         String deleteId = input.nextLine();
                         service.deleteBook(deleteId);
                         output.println("删除成功");
                         break;
-                    //保存并继续使用
+                    // 将当前书单写入文件；无论保存结果如何都继续显示菜单。
                     case "7":
                         try {
                             repository.save(service.listBooks());
@@ -117,7 +117,7 @@ public class ConsoleUI {
                             output.println("保存失败：" + e.getMessage());
                         }
                         break;
-                    //修改
+                    // 按编号修改书名和作者；业务层会先校验新内容。
                     case "8":
                         output.println("请输入要修改的书的编号：");
                         String updateId = input.nextLine();
@@ -128,7 +128,7 @@ public class ConsoleUI {
                         service.updateBook(updateId,updateTitle,updateAuthor);
                         output.println("更新成功");
                         break;
-                    //书名查询
+                    // 按书名关键词查询；没有匹配结果时给出提示。
                     case "9":
                         output.println("请输入要查询的书名关键词：");
                         String keyword = input.nextLine();
@@ -140,7 +140,7 @@ public class ConsoleUI {
                             printBooks(foundBooks);
                         }
                         break;
-                    //带分类添加
+                    // 添加带指定分类的图书；字段校验和编号查重仍由业务层完成。
                     case "10":
                         output.print("请输入要添加的编号：");
                         String classifiedId = input.nextLine();
@@ -153,7 +153,7 @@ public class ConsoleUI {
                         service.addBook(classifiedId, classifiedTitle, classifiedAuthor, classifiedCategory);
                         output.println("添加成功");
                         break;
-                    //修改分类
+                    // 按编号找到图书并更新分类；新分类由业务层校验。
                     case "11":
                         output.print("请输入要修改分类的书的编号：");
                         String categoryBookId = input.nextLine();
@@ -162,7 +162,7 @@ public class ConsoleUI {
                         service.updateBookCategory(categoryBookId, newCategory);
                         output.println("分类修改成功");
                         break;
-                    //分类查询
+                    // 按完整分类名查询；没有匹配结果时给出提示。
                     case "12":
                         output.print("请输入要查询的分类：");
                         String categoryKeyword = input.nextLine();
@@ -174,7 +174,7 @@ public class ConsoleUI {
                             printBooks(categoryMatches);
                         }
                         break;
-                    //输入不合规
+                    // 菜单编号不在已定义的选项中，提示后返回菜单循环。
                     default:
                         output.println("没有这个菜单选项");
                 }
