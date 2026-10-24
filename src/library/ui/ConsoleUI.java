@@ -10,12 +10,14 @@ import library.service.LibraryService;
 import library.storage.BookRepository;
 import java.util.NoSuchElementException;
 
+/** 负责菜单交互和结果展示；图书规则由 LibraryService 处理。 */
 public class ConsoleUI {
     private final LibraryService service;
     private final BookRepository repository;
     private final Scanner input;
     private final PrintStream output;
 
+    /** 注入业务、存储和输入输出对象，便于独立运行菜单会话。 */
     public ConsoleUI(LibraryService service,BookRepository repository,
         Scanner input,PrintStream output){
         this.service = service;
@@ -24,10 +26,12 @@ public class ConsoleUI {
         this.output = output;
     }
 
+    /** 运行菜单循环；0 表示正常退出，2 表示输入结束时保存失败。 */
     public int run(){
         while(true){
             output.println("请输入菜单：1添加 | 2全部 | 3编号查询 | 4借出 | 5归还 | 6删除 | 7保存继续 | 8修改 | 9书名查询 | 10分类添加 | 11修改分类 | 12分类查询 | 0退出");
 
+            // 输入流已结束时，先保存已完成的操作再退出。
             if (!input.hasNextLine()) {
                 try {
                     repository.save(service.listBooks());
@@ -41,6 +45,7 @@ public class ConsoleUI {
             }
             String choice = input.nextLine().trim();
             
+            // 主动退出若保存失败，保留会话供用户重试。
             if (choice.equals("0")) {
                 try{
                     repository.save(service.listBooks());
@@ -174,9 +179,11 @@ public class ConsoleUI {
                         output.println("没有这个菜单选项");
                 }
             }
+            // 将可预期的业务错误显示给用户，然后继续接受菜单输入。
             catch (IllegalArgumentException | IllegalStateException e) {
                 output.println(e.getMessage());
             }
+            // 输入可能在填写某个菜单项的过程中结束，此时仍尝试保存。
             catch (NoSuchElementException e){
                 try{
                     repository.save(service.listBooks());
@@ -190,6 +197,7 @@ public class ConsoleUI {
             }
         }
     }
+    /** 统一显示图书字段与借阅状态。 */
     private void printBooks(List<Book> books) {
         for (Book book : books) {
             String status;

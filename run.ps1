@@ -1,3 +1,4 @@
+# Compile Java sources and run the app; -Action build only checks compilation.
 param(
     [ValidateSet('run', 'build')]
     [string]$Action = 'run',
@@ -8,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $compileRoot = Join-Path $projectRoot '.build'
 
+# Remove the temporary classes produced by this script.
 function Remove-BuildDirectory {
     if (Test-Path -LiteralPath $compileRoot) {
         Remove-Item -LiteralPath $compileRoot -Recurse -Force -ErrorAction SilentlyContinue
@@ -21,6 +23,7 @@ if ($Action -eq 'run' -and -not (Get-Command java -ErrorAction SilentlyContinue)
     throw 'The java command was not found. Add the JDK bin directory to PATH.'
 }
 
+# Discover all Java sources under src instead of maintaining a file list.
 $sourceFiles = @(Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Recurse -Filter '*.java' |
     Select-Object -ExpandProperty FullName)
 if ($sourceFiles.Count -eq 0) {
@@ -42,6 +45,7 @@ try {
         Write-Output 'BUILD OK'
     }
     else {
+        # Resolve relative data paths from the project root, not the caller's directory.
         if ([string]::IsNullOrWhiteSpace($DataFile)) {
             $DataFile = Join-Path $projectRoot 'data\books.tsv'
         }
@@ -49,6 +53,7 @@ try {
             $DataFile = Join-Path $projectRoot $DataFile
         }
 
+        # Match console input and output encoding to the UTF-8 data file.
         $utf8 = New-Object System.Text.UTF8Encoding($false)
         [Console]::InputEncoding = $utf8
         [Console]::OutputEncoding = $utf8
