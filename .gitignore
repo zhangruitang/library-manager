@@ -1,0 +1,28 @@
+# Generated Java output
+.build/
+bin/
+out/
+*.class
+sources.txt
+
+# Local book lists; share fictional examples through samples instead.
+data/
+
+# Local operating system files
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# IDE and editor metadata
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# JVM crash logs and flight-recorder dumps
+hs_err_pid*
+replay_pid*
+
+# Local logs
+*.log

@@ -1,0 +1,24 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+# Java sources and the Windows launcher script.
+[*.{java,ps1}]
+indent_style = space
+indent_size = 4
+
+# JSON, YAML and Markdown.
+[*.{json,yml,yaml,md}]
+indent_style = space
+indent_size = 2
+
+# Keep the two trailing spaces that Markdown uses for a hard line break.
+[*.md]
+trim_trailing_whitespace = false
+
+# A trailing tab is a real empty final column in TSV; never trim it.
+[*.tsv]
+trim_trailing_whitespace = false

@@ -1,0 +1,179 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Compile and smoke test (${{ matrix.os }}, JDK ${{ matrix.java }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        java: ['17', '21']
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+
+      # Windows: run the real launcher script. It compiles into .build and
+      # removes that directory when it exits, so nothing below relies on it.
+      - name: Compile with run.ps1 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 -Action build
+
+      # Windows: compile again into out/ for the smoke test, so the test does
+      # not depend on run.ps1's internal .build layout.
+      - name: Compile for smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force out -ErrorAction SilentlyContinue
+          $sources = @(Get-ChildItem src -Recurse -Filter *.java | Select-Object -ExpandProperty FullName)
+          javac --release 17 -encoding UTF-8 -d out @sources
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Linux: equivalent of the manual javac commands in README.md.
+      - name: Compile with javac (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p out
+          find src -name '*.java' -print > sources.txt
+          javac --release 17 -encoding UTF-8 -d out @sources.txt
+
+      # Both platforms seed the bundled samples into data/, pick menu 2 (list
+      # all books) and menu 0 (save and exit). Saved files must be V2 TSV.
+      # Keep shell: pwsh: these assertions contain Chinese literals and rely on
+      # PowerShell 7 reading the UTF-8 script; Windows PowerShell 5.1 would
+      # mis-decode a BOM-less UTF-8 script.
+      - name: Smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          function Assert($Condition, $Message) {
+            if (-not $Condition) { throw "Smoke test failed: $Message" }
+          }
+
+          $utf8 = New-Object System.Text.UTF8Encoding($false)
+
+          function Read-Lines($Path) {
+            return [System.IO.File]::ReadAllLines((Resolve-Path -LiteralPath $Path).Path, $utf8)
+          }
+
+          function Invoke-App($DataFile) {
+            $output = "2`n0`n" | & java '-Dfile.encoding=UTF-8' -cp out library.Main $DataFile
+            $code = $LASTEXITCODE
+            return [pscustomobject]@{ Code = $code; Output = ($output -join "`n") }
+          }
+
+          New-Item -ItemType Directory -Force -Path data | Out-Null
+
+          # V2 sample: list all books, then save and exit.
+          Copy-Item -LiteralPath samples/books-v2.tsv -Destination data/smoke-v2.tsv -Force
+          $result = Invoke-App 'data/smoke-v2.tsv'
+          Assert ($result.Code -eq 0) "V2 run exited with $($result.Code)"
+          Assert ($result.Output -match 'B001') 'V2 stdout does not mention B001'
+
+          $lines = Read-Lines 'data/smoke-v2.tsv'
+          Assert ($lines[0] -eq "LIBRARY`t2") 'V2 saved header is not LIBRARY<TAB>2'
+          Assert ($lines.Count -eq 5) 'V2 saved file should have one header and 4 book rows'
+          $wrong = @($lines[1..4] | Where-Object { ($_ -split "`t", -1).Count -ne 5 })
+          Assert ($wrong.Count -eq 0) 'V2 saved row does not have 5 columns'
+
+          # V1 sample: load, list, save. The file must be upgraded to V2 and the
+          # missing category must become 未分类.
+          Copy-Item -LiteralPath samples/books-v1.tsv -Destination data/smoke-v1.tsv -Force
+          $result = Invoke-App 'data/smoke-v1.tsv'
+          Assert ($result.Code -eq 0) "V1 run exited with $($result.Code)"
+
+          $lines = Read-Lines 'data/smoke-v1.tsv'
+          Assert ($lines[0] -eq "LIBRARY`t2") 'V1 saved header is not upgraded to LIBRARY<TAB>2'
+          Assert ($lines.Count -eq 3) 'V1 saved file should have one header and 2 book rows'
+          $wrong = @($lines[1..2] | Where-Object { ($_ -split "`t", -1).Count -ne 5 })
+          Assert ($wrong.Count -eq 0) 'V1 saved row does not have 5 columns'
+          $wrong = @($lines[1..2] | Where-Object { ($_ -split "`t", -1)[4] -ne '未分类' })
+          Assert ($wrong.Count -eq 0) 'V1 saved category is not 未分类'
+
+          # Bad header: exit code 1 and the file must stay unchanged.
+          $badPath = 'data/smoke-bad.tsv'
+          [System.IO.File]::WriteAllText((Join-Path $PWD $badPath), "WRONG`tHEADER`n", $utf8)
+          $before = (Get-FileHash -Algorithm SHA256 -LiteralPath $badPath).Hash
+          $result = Invoke-App $badPath
+          $after = (Get-FileHash -Algorithm SHA256 -LiteralPath $badPath).Hash
+          Assert ($result.Code -eq 1) "Bad header run exited with $($result.Code)"
+          Assert ($before -eq $after) 'Bad header file was modified'
+
+          Write-Output 'Windows smoke tests passed'
+          exit 0
+
+      - name: Smoke test (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          fail() { echo "Smoke test failed: $1"; exit 1; }
+
+          mkdir -p data
+
+          # V2 sample: list all books, then save and exit.
+          cp samples/books-v2.tsv data/smoke-v2.tsv
+          set +e
+          out_v2=$(printf '2\n0\n' | java -Dfile.encoding=UTF-8 -cp out library.Main data/smoke-v2.tsv)
+          code_v2=$?
+          set -e
+          [ "$code_v2" -eq 0 ] || fail "V2 run exited with $code_v2"
+          printf '%s\n' "$out_v2" | grep -q 'B001' || fail 'V2 stdout does not mention B001'
+          [ "$(head -n 1 data/smoke-v2.tsv | tr -d '\r')" = $'LIBRARY\t2' ] || fail 'V2 saved header is not LIBRARY<TAB>2'
+          [ "$(wc -l < data/smoke-v2.tsv)" -eq 5 ] || fail 'V2 saved file should have one header and 4 book rows'
+          awk -F'\t' 'NR > 1 && NF != 5 { print "row " NR " does not have 5 columns"; exit 1 }' data/smoke-v2.tsv \
+            || fail 'V2 saved row does not have 5 columns'
+
+          # V1 sample: load, list, save. The file must be upgraded to V2 and the
+          # missing category must become 未分类.
+          cp samples/books-v1.tsv data/smoke-v1.tsv
+          set +e
+          out_v1=$(printf '2\n0\n' | java -Dfile.encoding=UTF-8 -cp out library.Main data/smoke-v1.tsv)
+          code_v1=$?
+          set -e
+          [ "$code_v1" -eq 0 ] || fail "V1 run exited with $code_v1"
+          [ "$(head -n 1 data/smoke-v1.tsv | tr -d '\r')" = $'LIBRARY\t2' ] || fail 'V1 saved header is not upgraded to LIBRARY<TAB>2'
+          [ "$(wc -l < data/smoke-v1.tsv)" -eq 3 ] || fail 'V1 saved file should have one header and 2 book rows'
+          awk -F'\t' 'NR > 1 { if (NF != 5) { print "row " NR " does not have 5 columns"; exit 1 } sub(/\r$/, "", $5); if ($5 != "未分类") { print "row " NR " category is not 未分类"; exit 1 } }' data/smoke-v1.tsv \
+            || fail 'V1 saved row is not upgraded with category 未分类'
+
+          # Bad header: exit code 1 and the file must stay unchanged.
+          printf 'WRONG\tHEADER\n' > data/smoke-bad.tsv
+          before=$(sha256sum data/smoke-bad.tsv | awk '{print $1}')
+          set +e
+          printf '0\n' | java -Dfile.encoding=UTF-8 -cp out library.Main data/smoke-bad.tsv > /dev/null
+          code_bad=$?
+          set -e
+          after=$(sha256sum data/smoke-bad.tsv | awk '{print $1}')
+          [ "$code_bad" -eq 1 ] || fail "Bad header run exited with $code_bad"
+          [ "$before" = "$after" ] || fail 'Bad header file was modified'
+
+          echo 'Linux smoke tests passed'

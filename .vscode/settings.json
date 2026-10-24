@@ -1,0 +1,11 @@
+{
+  "java.project.sourcePaths": ["src"],
+  "java.project.outputPath": "bin",
+  "java.project.referencedLibraries": [],
+  "java.debug.settings.console": "integratedTerminal",
+  "files.encoding": "utf8",
+  "files.exclude": {
+    "**/.build": true,
+    "**/bin": true
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "运行图书管理器",
+      "request": "launch",
+      "mainClass": "library.Main",
+      "cwd": "${workspaceFolder}",
+      "args": ["${workspaceFolder}/data/books.tsv"],
+      "console": "integratedTerminal",
+      "vmArgs": "-Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8"
+    }
+  ]
+}

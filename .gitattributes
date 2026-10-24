@@ -1,0 +1,5 @@
+# Normalize line endings in the repository; checkouts use LF on every platform.
+* text=auto eol=lf
+
+# TSV book lists use a real tab as the column separator and LF line endings.
+*.tsv text eol=lf
