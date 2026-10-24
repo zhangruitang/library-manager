@@ -100,7 +100,7 @@ jobs:
           $lines = Read-Lines 'data/smoke-v2.tsv'
           Assert ($lines[0] -eq "LIBRARY`t2") 'V2 saved header is not LIBRARY<TAB>2'
           Assert ($lines.Count -eq 5) 'V2 saved file should have one header and 4 book rows'
-          $wrong = @($lines[1..4] | Where-Object { ($_ -split "`t", -1).Count -ne 5 })
+          $wrong = @($lines[1..4] | Where-Object { ($_ -split "`t").Count -ne 5 })
           Assert ($wrong.Count -eq 0) 'V2 saved row does not have 5 columns'
 
           # V1 sample: load, list, save. The file must be upgraded to V2 and the
@@ -112,9 +112,9 @@ jobs:
           $lines = Read-Lines 'data/smoke-v1.tsv'
           Assert ($lines[0] -eq "LIBRARY`t2") 'V1 saved header is not upgraded to LIBRARY<TAB>2'
           Assert ($lines.Count -eq 3) 'V1 saved file should have one header and 2 book rows'
-          $wrong = @($lines[1..2] | Where-Object { ($_ -split "`t", -1).Count -ne 5 })
+          $wrong = @($lines[1..2] | Where-Object { ($_ -split "`t").Count -ne 5 })
           Assert ($wrong.Count -eq 0) 'V1 saved row does not have 5 columns'
-          $wrong = @($lines[1..2] | Where-Object { ($_ -split "`t", -1)[4] -ne '未分类' })
+          $wrong = @($lines[1..2] | Where-Object { ($_ -split "`t")[4] -ne '未分类' })
           Assert ($wrong.Count -eq 0) 'V1 saved category is not 未分类'
 
           # Bad header: exit code 1 and the file must stay unchanged.
